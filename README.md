@@ -21,7 +21,7 @@ This is experimental. Automated tests use synthetic Marketplace data and simulat
 
 1. Make a full Home Assistant backup. Use **Add Alarm.com to Marketplace** to open the maintained listing and add it if prompted. For another integration, use **Settings → Marketplace → Add from link** to add its replacement.
 2. Use **Add the repair app repository** and confirm **Add**. Then use **Open the repair app** and choose **Install → Start → Open Web UI**. You can also find it under **Settings → Apps → Install app**.
-3. Select **Preview Alarm.com repair**, or expand **Repair another integration** and enter both repository names. Review the change, confirm that you have a backup, and choose **Repair and restart Home Assistant**.
+3. Pick **Preview switch to maintained Alarm.com** or **Preview switch to original Alarm.com**. For another integration, expand **Repair another integration** and enter both repository names. Review the change, confirm that you have a backup, and choose **Repair and restart Home Assistant**.
 4. Home Assistant may briefly disconnect. Once it is back, reopen the app to see the result, then open Marketplace and choose **Install** or **Update** on the replacement. Verify your existing devices and automations.
 
 The app runs on Home Assistant OS (64-bit ARM and x86-64). Supervisor builds it on your device and it includes Python. You can stop or uninstall the repair app after verification.
@@ -80,9 +80,9 @@ For the Alarm.com migration, the repository arguments are `--from pyalarmdotcom/
 
 ## Roll back
 
-Before installing or updating the replacement, you can restore the original metadata. With Core stopped, copy the contents of `.storage/marketplace.repositories.before-repository-repair` over `.storage/marketplace.repositories`, then start Core. This restores the full Marketplace metadata snapshot, including other repositories' state at the time of the repair.
+Before installing or updating the replacement, you can restore the original metadata. With Core stopped, copy the contents of the specific `.storage/marketplace.repositories.before-repository-repair-…` file shown in the repair result over `.storage/marketplace.repositories`, then start Core. This restores the full Marketplace metadata snapshot, including other repositories' state at the time of that repair.
 
-After installing or updating, use the full Home Assistant backup to also restore integration files and any configuration or registry changes made during setup. Keep the metadata backup available until you have verified the repair. Archive it before another repair in the same configuration directory.
+After installing or updating, use the full Home Assistant backup to also restore integration files and any configuration or registry changes made during setup. Each repair creates a separate timestamped metadata backup, including when switching back. Older backups, including the file from version 0.1.1, are kept.
 
 If Core stays offline after the app runs, use the Home Assistant OS machine console and enter `ha core start`. From the `ha >` prompt, enter `core start`. When the UI is back, check the repair app's log before retrying.
 

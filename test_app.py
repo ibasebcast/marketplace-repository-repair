@@ -66,8 +66,11 @@ class BrowserRepairTests(unittest.TestCase):
             with error:
                 return error.code, error.read().decode()
 
-    def preview(self):
-        status, body = self.request(action="alarm", csrf=self.state.csrf)
+    def backups(self):
+        return list(self.path.parent.glob(self.backup.name + "-*"))
+
+    def preview(self, action="alarm"):
+        status, body = self.request(action=action, csrf=self.state.csrf)
         self.assertEqual(status, 200)
         self.assertIn("Review the repair", body)
         self.assertIn("pyalarmdotcom/alarmdotcom", body)
@@ -81,7 +84,7 @@ class BrowserRepairTests(unittest.TestCase):
 
     def test_preview_confirmation_stops_repairs_and_starts_core(self):
         _, landing = self.request()
-        self.assertIn("Preview Alarm.com repair", landing)
+        self.assertIn("Preview switch to maintained Alarm.com", landing)
         self.assertIn("Open Alarm.com in Marketplace", landing)
         self.assertIn("owner=ibasebcast&amp;repository=ha-alarmdotcom&amp;category=integration", landing)
         preview = self.preview()
@@ -92,11 +95,34 @@ class BrowserRepairTests(unittest.TestCase):
         self.assertIn("Repair started", body)
         self.wait_for_repair()
         self.assertEqual(self.calls, ["stop", "start"])
-        self.assertEqual(self.backup.read_bytes(), self.original)
+        self.assertEqual([path.read_bytes() for path in self.backups()], [self.original])
         self.assertEqual(self.registry.read_bytes(), b"unchanged registry")
         self.assertFalse(self.recovery.exists())
         self.assertNotIn("installed", json.loads(self.path.read_bytes())["data"]["100"])
         self.assertIn("Repair complete", self.request()[1])
+
+    def test_switches_back_with_an_existing_backup_and_keeps_both_snapshots(self):
+        self.backup.write_bytes(b"legacy backup")
+        preview = self.preview()
+        self.assertEqual(self.request(action="apply", csrf=self.state.csrf, preview=preview, backup="yes")[0], 202)
+        self.wait_for_repair()
+
+        # Simulate Marketplace installing the maintained version after repair.
+        current = json.loads(self.path.read_bytes())
+        current["data"]["200"]["installed"] = True
+        installed = json.dumps(current).encode()
+        self.path.write_bytes(installed)
+
+        preview = self.preview("alarm_upstream")
+        self.assertEqual(self.state.pending.new_repo, "pyalarmdotcom/alarmdotcom")
+        self.assertEqual(self.request(action="apply", csrf=self.state.csrf, preview=preview, backup="yes")[0], 202)
+        self.wait_for_repair()
+
+        self.assertEqual(self.calls, ["stop", "start", "stop", "start"])
+        self.assertEqual(self.backup.read_bytes(), b"legacy backup")
+        self.assertCountEqual([path.read_bytes() for path in self.backups()], [self.original, installed])
+        self.assertNotIn("installed", json.loads(self.path.read_bytes())["data"]["200"])
+        self.assertIn("choose Install for pyalarmdotcom/alarmdotcom", self.request()[1])
 
     def test_refuses_untrusted_peer_and_requests_without_confirmation(self):
         with patch.object(app, "INGRESS_PEER", "172.30.32.2"):
@@ -106,7 +132,7 @@ class BrowserRepairTests(unittest.TestCase):
         self.assertEqual(self.request(action="apply", csrf=self.state.csrf, preview=preview)[0], 400)
         self.assertEqual(self.request(action="apply", csrf=self.state.csrf, preview="old", backup="yes")[0], 400)
         self.assertEqual(self.calls, [])
-        self.assertFalse(self.backup.exists())
+        self.assertEqual(self.backups(), [])
 
     def test_storage_change_during_shutdown_still_starts_core(self):
         def stop_and_change(action):
@@ -121,7 +147,7 @@ class BrowserRepairTests(unittest.TestCase):
             self.wait_for_repair()
         self.assertEqual(self.calls, ["stop", "start"])
         self.assertIn("conflict changed during shutdown", self.request()[1])
-        self.assertFalse(self.backup.exists())
+        self.assertEqual(self.backups(), [])
         self.assertEqual(json.loads(self.path.read_bytes()), self.document)
 
     def test_app_restart_recovers_core_when_start_was_interrupted(self):

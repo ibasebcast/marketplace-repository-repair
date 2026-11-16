@@ -85,9 +85,6 @@ def inspect_repair(old_repo, new_repo):
     storage = CONFIG / ".storage" / STORE_KEY
     args = SimpleNamespace(config=CONFIG, old_repo=old_repo, new_repo=new_repo)
     original, (domain, updated, installed) = read_repair(storage, args)
-    backup = storage.with_name(storage.name + ".before-repository-repair")
-    if updated is not None and backup.exists():
-        raise ValueError("A previous repair backup exists. See the app documentation before continuing.")
     return Plan(old_repo, new_repo, domain, installed), storage, original, updated
 
 
@@ -126,8 +123,11 @@ class AppState:
                 current, storage, original, updated = inspect_repair(plan.old_repo, plan.new_repo)
                 if current != plan or updated is None:
                     raise ValueError("The conflict changed during shutdown. Preview it again.")
-                save_repair(storage, original, updated)
-                message = f"Repair complete. In Marketplace, choose {plan.next_step} for {plan.new_repo}."
+                backup = save_repair(storage, original, updated)
+                message = (
+                    f"Repair complete. In Marketplace, choose {plan.next_step} for {plan.new_repo}. "
+                    f"Backup saved as {backup.name}."
+                )
             finally:
                 supervisor("start")
                 RECOVERY_FILE.unlink()
@@ -175,13 +175,17 @@ def page(*, notice="", preview=None, preview_id=None, busy=False):
         Add the replacement to Marketplace first. If Marketplace offers <strong>Delete and uninstall</strong>, choose Cancel.</p>
         <section class="panel">
           <h2>Alarm.com</h2>
-          <p>Switch from the original integration to the maintained version.</p>
+          <p>Choose the version you want to switch to.</p>
           <a class="button" href="{escape(ALARM_DOT_COM_MARKETPLACE)}" target="_blank" rel="noopener noreferrer">
             Open Alarm.com in Marketplace
           </a>
           <form method="post">
             {token}<input type="hidden" name="action" value="alarm">
-            <button class="primary">Preview Alarm.com repair</button>
+            <button class="primary">Preview switch to maintained Alarm.com</button>
+          </form>
+          <form method="post">
+            {token}<input type="hidden" name="action" value="alarm_upstream">
+            <button>Preview switch to original Alarm.com</button>
           </form>
         </section>
         <details>
@@ -269,6 +273,8 @@ class Handler(BaseHTTPRequestHandler):
 
             if action == "alarm":
                 old_repo, new_repo = ALARM_DOT_COM_REPOS
+            elif action == "alarm_upstream":
+                new_repo, old_repo = ALARM_DOT_COM_REPOS
             elif action == "preview":
                 old_repo = form.get("old", [""])[0].strip()
                 new_repo = form.get("new", [""])[0].strip()

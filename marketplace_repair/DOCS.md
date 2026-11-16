@@ -4,7 +4,7 @@ Use this app on Home Assistant OS when Marketplace says the integration folder b
 
 1. Create a full Home Assistant backup.
 2. [Open the maintained Alarm.com listing in Marketplace](https://my.home-assistant.io/redirect/marketplace_repository/?owner=ibasebcast&repository=ha-alarmdotcom&category=integration) and add it if prompted. For other integrations, use **Settings → Marketplace → Add from link**. Open the listing so Marketplace records its integration domain.
-3. Start this app and choose **Open Web UI → Preview Alarm.com repair**. For another integration, enter the repository named in the error and the repository you want to install.
+3. Start this app, choose **Open Web UI**, and pick the version you want to switch to. For another integration, enter the repository named in the error and the repository you want to install.
 4. Review the preview. Check the backup box and choose **Repair and restart Home Assistant**.
 5. When Home Assistant reconnects, reopen this app to see the result. Then go to Marketplace and select **Install** or **Update** on the replacement.
 
@@ -12,8 +12,8 @@ The app writes only Marketplace's repository metadata. It requests that Supervis
 
 ## Recovery
 
-The original Marketplace metadata is saved in `.storage/marketplace.repositories.before-repository-repair`. To undo the repair, restore the full backup from **Settings → System → Backups**. It also restores integration files and any configuration changes made by the replacement after installation.
+Each repair saves a separate timestamped snapshot of Marketplace metadata in `.storage`. The repair result shows its filename. To undo the repair, restore the full backup from **Settings → System → Backups**. It also restores integration files and any configuration changes made by the replacement after installation.
 
-The app will keep that original metadata file if you try another repair. After verifying the first repair, archive the metadata file before running another. If Core is still offline after several minutes, see the [app repository](https://github.com/ibasebcast/marketplace-repository-repair) for the manual recovery commands.
+If Core is still offline after several minutes, see the [app repository](https://github.com/ibasebcast/marketplace-repository-repair) for the manual recovery commands.
 
 This app is experimental and uses an internal Marketplace storage format. It checks the format before applying a repair.
