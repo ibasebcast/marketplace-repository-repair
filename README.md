@@ -1,6 +1,6 @@
 # Marketplace Repository Repair
 
-An independent command-line workaround for [Home Assistant Core #190454](https://github.com/home-assistant/core/issues/190454). It covers integration updates blocked by a stale repository and deliberate switches between repositories that publish the same integration domain.
+An independent workaround for [Home Assistant Core #190454](https://github.com/home-assistant/core/issues/190454). It covers integration updates blocked by a stale repository and deliberate switches between repositories that publish the same integration domain.
 
 Marketplace can report that the integration directory belongs to another repository. Its **Delete and uninstall** button removes the configured integration and its devices and entities. Choose **Cancel** if you want to keep that setup.
 
@@ -9,12 +9,24 @@ The tool clears the old repository's installed status and version information in
 ## Requirements
 
 - Marketplace on Home Assistant Core 2026.11, using repository storage format 1.1. The tool was developed against the 2026.11.1 source.
-- Python 3.10+ and shell access to the Home Assistant configuration directory from a host or terminal that remains available when Core is stopped. On HA OS, that terminal must have access to the same configuration directory.
 - The original and replacement repositories must both be visible in Marketplace. Add or refresh the replacement first so Marketplace has recorded its integration domain.
 
-This is a prototype tested against synthetic Marketplace data. Verify it on a spare instance or a copy of your configuration before using it on a live installation.
+This is experimental. Automated tests use synthetic Marketplace data and simulated Core restarts. Try it on a spare instance before relying on it on a live installation.
 
-## Guided repair on Home Assistant OS
+## Repair from the Home Assistant browser
+
+[Add the app repository to Home Assistant](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fibasebcast%2Fmarketplace-repository-repair)
+
+1. Make a full Home Assistant backup. In **Settings → Marketplace**, add the replacement with **Add from link** if it is missing. For Alarm.com, use `ibasebcast/ha-alarmdotcom`.
+2. Open the link above and confirm **Add**. Then [open Marketplace Repository Repair](https://my.home-assistant.io/redirect/supervisor_app/?app=9daa5e6c_marketplace_repair) and choose **Install → Start → Open Web UI**. You can also find it under **Settings → Apps → Install app**.
+3. Select **Preview Alarm.com repair**, or expand **Repair another integration** and enter both repository names. Review the change, confirm that you have a backup, and choose **Repair and restart Home Assistant**.
+4. Home Assistant may briefly disconnect. Once it is back, reopen the app to see the result, then open Marketplace and choose **Install** or **Update** on the replacement. Verify your existing devices and automations.
+
+The app runs on Home Assistant OS (64-bit ARM and x86-64). Supervisor builds it on your device and it includes Python. You can stop or uninstall the repair app after verification.
+
+## Guided repair from SSH on Home Assistant OS
+
+The command-line options below require Python 3.10+ and a shell that stays available while Core stops.
 
 1. Create a full Home Assistant backup. In **Settings → Marketplace**, add the
    replacement repository with **Add from link** if it's missing, then open its
@@ -70,6 +82,8 @@ Before installing or updating the replacement, you can restore the original meta
 
 After installing or updating, use the full Home Assistant backup to also restore integration files and any configuration or registry changes made during setup. Keep the metadata backup available until you have verified the repair. Archive it before another repair in the same configuration directory.
 
+If Core stays offline after the app runs, use the Home Assistant OS machine console and enter `ha core start`. From the `ha >` prompt, enter `core start`. When the UI is back, check the repair app's log before retrying.
+
 ## Development
 
-Run the tests with `python3 -m unittest -v`. They use temporary configuration directories and require no Home Assistant instance or network access.
+Run the tests with `python3 -m unittest -v`. They use temporary configuration directories and a local HTTP server in place of Supervisor.
