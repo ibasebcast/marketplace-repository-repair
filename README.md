@@ -89,3 +89,7 @@ If Core stays offline after the app runs, use the Home Assistant OS machine cons
 ## Development
 
 Run the tests with `python3 -m unittest -v`. They use temporary configuration directories and a local HTTP server in place of Supervisor.
+
+## License
+
+Marketplace Repository Repair is available under the [MIT License](LICENSE).
