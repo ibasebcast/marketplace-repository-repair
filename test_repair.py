@@ -66,6 +66,9 @@ class RepairTests(unittest.TestCase):
         self.store.chmod(0o640)
         return raw
 
+    def backups(self):
+        return list(self.store.parent.glob(self.backup.name + "-*"))
+
     def invoke(self, *options):
         return subprocess.run(
             [sys.executable, str(SCRIPT), "--config", str(self.config),
@@ -79,14 +82,14 @@ class RepairTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(f"install {NEW}", result.stdout)
         self.assertEqual(self.store.read_bytes(), original)
-        self.assertFalse(self.backup.exists())
+        self.assertEqual(self.backups(), [])
 
     def test_apply_clears_one_owner_and_preserves_other_data(self):
         original = self.write_store()
         manifest = self.manifest.read_bytes()
         result = self.invoke("--apply", "--core-stopped")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.backup.read_bytes(), original)
+        self.assertEqual([path.read_bytes() for path in self.backups()], [original])
         self.assertEqual(stat.S_IMODE(self.store.stat().st_mode), 0o640)
         for key in ("installed", "installed_commit", "version_installed"):
             del self.document["data"]["1000"][key]
@@ -97,7 +100,7 @@ class RepairTests(unittest.TestCase):
         result = self.invoke("--apply", "--core-stopped")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("No change needed", result.stdout)
-        self.assertEqual(self.backup.read_bytes(), original)
+        self.assertEqual([path.read_bytes() for path in self.backups()], [original])
 
     def test_duplicate_install_keeps_the_replacement_installed(self):
         self.document["data"]["2000"]["installed"] = True
@@ -114,7 +117,7 @@ class RepairTests(unittest.TestCase):
         result = self.invoke("--apply")
         self.assertEqual(result.returncode, 2)
         self.assertEqual(self.store.read_bytes(), original)
-        self.assertFalse(self.backup.exists())
+        self.assertEqual(self.backups(), [])
 
     def test_rejects_mismatched_domain_third_owner_and_unknown_schema(self):
         for case, error in (
@@ -138,15 +141,15 @@ class RepairTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 1, result.stdout)
                 self.assertIn(error, result.stderr)
                 self.assertEqual(self.store.read_bytes(), original)
-                self.assertFalse(self.backup.exists())
+                self.assertEqual(self.backups(), [])
                 self.document = snapshot
 
-    def test_refuses_to_overwrite_rollback_copy(self):
+    def test_creates_another_backup_without_overwriting_legacy_copy(self):
         original = self.write_store()
         self.backup.write_bytes(b"prior backup")
         result = self.invoke("--apply", "--core-stopped")
-        self.assertEqual(result.returncode, 1)
-        self.assertEqual(self.store.read_bytes(), original)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([path.read_bytes() for path in self.backups()], [original])
         self.assertEqual(self.backup.read_bytes(), b"prior backup")
 
     def test_refuses_missing_integration_files(self):
@@ -156,7 +159,7 @@ class RepairTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("manifest is missing", result.stderr)
         self.assertEqual(self.store.read_bytes(), original)
-        self.assertFalse(self.backup.exists())
+        self.assertEqual(self.backups(), [])
 
     def guided(self, answer, cli, *arguments):
         with (
@@ -180,7 +183,7 @@ class RepairTests(unittest.TestCase):
 
         self.assertEqual(self.guided("", cli), 0)
         self.assertEqual(self.store.read_bytes(), original)
-        self.assertFalse(self.backup.exists())
+        self.assertEqual(self.backups(), [])
 
     def test_guided_stops_repairs_and_starts_core(self):
         original = self.write_store()
@@ -193,7 +196,7 @@ class RepairTests(unittest.TestCase):
             if action == "stop":
                 self.assertEqual(self.store.read_bytes(), original)
             else:
-                self.assertEqual(self.backup.read_bytes(), original)
+                self.assertEqual([path.read_bytes() for path in self.backups()], [original])
                 self.assertNotIn("installed", json.loads(self.store.read_bytes())["data"]["1000"])
 
         self.assertEqual(self.guided("REPAIR", cli), 0)
@@ -230,4 +233,4 @@ class RepairTests(unittest.TestCase):
         self.assertEqual(self.guided("REPAIR", cli), 1)
         self.assertEqual(calls, ["stop", "start"])
         self.assertEqual(json.loads(self.store.read_bytes()), self.document)
-        self.assertFalse(self.backup.exists())
+        self.assertEqual(self.backups(), [])

@@ -2,6 +2,8 @@
 """Repair a Home Assistant Marketplace integration repository conflict offline."""
 
 import argparse
+from datetime import datetime, timezone
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -96,16 +98,26 @@ def prepare_repair(raw, config, old_repo, new_repo):
 
 def save_repair(path, original, updated):
     """Save the original bytes, then atomically replace the Marketplace file."""
+    directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        fcntl.flock(directory, fcntl.LOCK_EX)
+        return write_repair(path, original, updated)
+    finally:
+        os.close(directory)
+
+
+def write_repair(path, original, updated):
+    """Write one repair while holding the storage directory lock."""
     current = path.stat(follow_symlinks=False)
     if not stat.S_ISREG(current.st_mode) or current.st_nlink != 1:
         raise ValueError("Marketplace storage must be a regular file with a single link.")
     if path.read_bytes() != original:
         raise ValueError("Marketplace storage changed during inspection. Run the preview again.")
 
-    backup = path.with_name(path.name + ".before-repository-repair")
-    # Exclusive creation prevents repeat runs from overwriting the rollback copy.
-    backup_fd = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(backup_fd, "wb") as handle:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    prefix = f"{path.name}.before-repository-repair-{timestamp}-"
+    with NamedTemporaryFile(dir=path.parent, prefix=prefix, delete=False) as handle:
+        backup = Path(handle.name)
         handle.write(original)
         handle.flush()
         os.fsync(handle.fileno())
@@ -206,8 +218,6 @@ def main(argv=None):
                 raise ValueError("Run guided mode from an interactive SSH terminal.")
             if shutil.which("ha") is None:
                 raise ValueError("Guided mode requires the Home Assistant Supervisor CLI (ha).")
-            if path.with_name(path.name + ".before-repository-repair").exists():
-                raise ValueError("A prior rollback copy exists. Archive it before running another repair.")
             return guided_repair(path, args, plan)
         if not args.apply:
             print("Preview only. No files were changed.")
