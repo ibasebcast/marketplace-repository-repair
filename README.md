@@ -1,2 +1,46 @@
-# marketplace-repository-repair
-Experimental offline repair tool for Home Assistant Marketplace integration repository conflicts (Core #190454).
+# Marketplace Repository Repair
+
+An independent command-line workaround for [Home Assistant Core #190454](https://github.com/home-assistant/core/issues/190454). It covers integration updates blocked by a stale repository and deliberate switches between repositories that publish the same integration domain.
+
+Marketplace can report that the integration directory belongs to another repository. Its **Delete and uninstall** button removes the configured integration and its devices and entities. Choose **Cancel** if you want to keep that setup.
+
+The tool clears the old repository's installed status and version information in Marketplace's local metadata. It leaves the integration files, config entries, and registries in place. Marketplace then handles the replacement install or update normally. A replacement release can still change entity IDs or migrate configuration, so check its compatibility before switching.
+
+## Requirements
+
+- Marketplace on Home Assistant Core 2026.11, using repository storage format 1.1. The tool was developed against the 2026.11.1 source.
+- Python 3.10+ and shell access to the Home Assistant configuration directory from a host or terminal that remains available when Core is stopped. On HA OS, that terminal must have access to the same configuration directory.
+- The original and replacement repositories must both be visible in Marketplace. Add or refresh the replacement first so Marketplace has recorded its integration domain.
+
+This is a prototype tested against synthetic Marketplace data. Verify it on a spare instance or a copy of your configuration before using it on a live installation.
+
+## Clear the ownership conflict
+
+1. Create a full Home Assistant backup.
+2. Preview the repair. Use the repository named in the ownership error for `--from` and the repository you want for `--to`. Change `/config` if your configuration is elsewhere.
+
+   ```sh
+   python3 repair.py --config /config --from old-owner/old-repo --to new-owner/new-repo
+   ```
+
+3. Verify both repositories and the domain in the preview. Stop Home Assistant Core. On HA OS, an independent terminal with Supervisor CLI access can use `ha core stop`; on Container, stop the Home Assistant container from its host. Run the same command with the two write flags.
+
+   ```sh
+   python3 repair.py --config /config --from old-owner/old-repo --to new-owner/new-repo --apply --core-stopped
+   ```
+
+   `--core-stopped` is your confirmation. The tool cannot detect Core running in a different container or host.
+
+4. Start Core again (`ha core start` on HA OS). In Marketplace, select the replacement and use **Install** or **Update**, as shown by the tool. Restart if Home Assistant asks. Verify your existing devices, entities, and automations.
+
+For the Alarm.com migration, the repository arguments are `--from pyalarmdotcom/alarmdotcom --to ibasebcast/ha-alarmdotcom`.
+
+## Roll back
+
+Before installing or updating the replacement, you can restore the original metadata. With Core stopped, copy the contents of `.storage/marketplace.repositories.before-repository-repair` over `.storage/marketplace.repositories`, then start Core. This restores the full Marketplace metadata snapshot, including other repositories' state at the time of the repair.
+
+After installing or updating, use the full Home Assistant backup to also restore integration files and any configuration or registry changes made during setup. Keep the metadata backup available until you have verified the repair. Archive it before another repair in the same configuration directory.
+
+## Development
+
+Run the tests with `python3 -m unittest -v`. They use temporary configuration directories and require no Home Assistant instance or network access.
