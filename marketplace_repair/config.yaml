@@ -1,5 +1,5 @@
 name: Marketplace Repository Repair
-version: "0.1.0"
+version: "0.1.1"
 slug: marketplace_repair
 description: Clear a Marketplace repository conflict while preserving your integration setup.
 url: https://github.com/ibasebcast/marketplace-repository-repair

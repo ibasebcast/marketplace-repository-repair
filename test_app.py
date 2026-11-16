@@ -80,7 +80,10 @@ class BrowserRepairTests(unittest.TestCase):
         self.assertFalse(self.state.busy, "Repair did not finish")
 
     def test_preview_confirmation_stops_repairs_and_starts_core(self):
-        self.assertIn("Preview Alarm.com repair", self.request()[1])
+        _, landing = self.request()
+        self.assertIn("Preview Alarm.com repair", landing)
+        self.assertIn("Open Alarm.com in Marketplace", landing)
+        self.assertIn("owner=ibasebcast&amp;repository=ha-alarmdotcom&amp;category=integration", landing)
         preview = self.preview()
         self.assertEqual(self.calls, [])
         self.assertEqual(self.path.read_bytes(), self.original)

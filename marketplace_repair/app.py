@@ -20,6 +20,10 @@ INGRESS_PEER = "172.30.32.2"
 CONFIG = Path("/homeassistant")
 RECOVERY_FILE = Path("/data/core-restart-pending")
 STATE_LOCK = Lock()
+ALARM_DOT_COM_MARKETPLACE = (
+    "https://my.home-assistant.io/redirect/marketplace_repository/"
+    "?owner=ibasebcast&repository=ha-alarmdotcom&category=integration"
+)
 
 STYLE = """
 :root { color-scheme: light dark; font: 16px/1.55 system-ui, sans-serif; }
@@ -31,7 +35,9 @@ fieldset, .panel { border: 1px solid #808080; border-radius: .75rem; padding: 1r
 form, .panel { margin-block: 1rem; }
 label { display: block; margin-block: .8rem; }
 input[type=text] { display: block; box-sizing: border-box; width: 100%; padding: .5rem; font: inherit; }
-button { font: inherit; padding: .5rem .85rem; border-radius: .45rem; cursor: pointer; }
+button, .button { font: inherit; padding: .5rem .85rem; border-radius: .45rem; cursor: pointer; }
+.button { display: inline-block; border: 1px solid #808080; color: inherit; text-decoration: none; }
+.button:hover { text-decoration: underline; }
 .primary { background: #006b98; color: white; border: 1px solid #006b98; }
 code { overflow-wrap: anywhere; }
 """
@@ -170,6 +176,9 @@ def page(*, notice="", preview=None, preview_id=None, busy=False):
         <section class="panel">
           <h2>Alarm.com</h2>
           <p>Switch from the original integration to the maintained version.</p>
+          <a class="button" href="{escape(ALARM_DOT_COM_MARKETPLACE)}" target="_blank" rel="noopener noreferrer">
+            Open Alarm.com in Marketplace
+          </a>
           <form method="post">
             {token}<input type="hidden" name="action" value="alarm">
             <button class="primary">Preview Alarm.com repair</button>

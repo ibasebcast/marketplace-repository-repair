@@ -15,10 +15,12 @@ This is experimental. Automated tests use synthetic Marketplace data and simulat
 
 ## Repair from the Home Assistant browser
 
-[Add the app repository to Home Assistant](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fibasebcast%2Fmarketplace-repository-repair)
+| Add the repair app repository | Open the repair app | Add Alarm.com to Marketplace |
+| --- | --- | --- |
+| [![Add the repair app repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fibasebcast%2Fmarketplace-repository-repair) | [![Open Marketplace Repository Repair](https://my.home-assistant.io/badges/supervisor_app.svg)](https://my.home-assistant.io/redirect/supervisor_app/?app=9daa5e6c_marketplace_repair) | [![Open the maintained Alarm.com listing in Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=ibasebcast&repository=ha-alarmdotcom&category=integration) |
 
-1. Make a full Home Assistant backup. In **Settings → Marketplace**, add the replacement with **Add from link** if it is missing. For Alarm.com, use `ibasebcast/ha-alarmdotcom`.
-2. Open the link above and confirm **Add**. Then [open Marketplace Repository Repair](https://my.home-assistant.io/redirect/supervisor_app/?app=9daa5e6c_marketplace_repair) and choose **Install → Start → Open Web UI**. You can also find it under **Settings → Apps → Install app**.
+1. Make a full Home Assistant backup. Use **Add Alarm.com to Marketplace** to open the maintained listing and add it if prompted. For another integration, use **Settings → Marketplace → Add from link** to add its replacement.
+2. Use **Add the repair app repository** and confirm **Add**. Then use **Open the repair app** and choose **Install → Start → Open Web UI**. You can also find it under **Settings → Apps → Install app**.
 3. Select **Preview Alarm.com repair**, or expand **Repair another integration** and enter both repository names. Review the change, confirm that you have a backup, and choose **Repair and restart Home Assistant**.
 4. Home Assistant may briefly disconnect. Once it is back, reopen the app to see the result, then open Marketplace and choose **Install** or **Update** on the replacement. Verify your existing devices and automations.
 
