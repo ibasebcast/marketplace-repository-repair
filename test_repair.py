@@ -1,12 +1,17 @@
 """Exercise the CLI with Home Assistant 2026.11 Marketplace storage fixtures."""
 
 import json
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from pathlib import Path
 import stat
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
+
+import repair
 
 
 SCRIPT = Path(__file__).with_name("repair.py")
@@ -151,4 +156,78 @@ class RepairTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("manifest is missing", result.stderr)
         self.assertEqual(self.store.read_bytes(), original)
+        self.assertFalse(self.backup.exists())
+
+    def guided(self, answer, cli, *arguments):
+        with (
+            patch("repair.sys.stdin.isatty", return_value=True),
+            patch("repair.shutil.which", return_value="/usr/bin/ha"),
+            patch("builtins.input", return_value=answer),
+            patch("repair.subprocess.run", side_effect=cli),
+            redirect_stdout(StringIO()),
+            redirect_stderr(StringIO()),
+        ):
+            return repair.main([
+                "--config", str(self.config),
+                *(arguments or ("--guided", "--from", OLD, "--to", NEW)),
+            ])
+
+    def test_guided_cancel_leaves_core_and_files_alone(self):
+        original = self.write_store()
+
+        def cli(*args, **kwargs):
+            self.fail("Cancellation should never run the Supervisor CLI")
+
+        self.assertEqual(self.guided("", cli), 0)
+        self.assertEqual(self.store.read_bytes(), original)
+        self.assertFalse(self.backup.exists())
+
+    def test_guided_stops_repairs_and_starts_core(self):
+        original = self.write_store()
+        calls = []
+
+        def cli(command, *, check):
+            self.assertTrue(check)
+            action = command[-1]
+            calls.append(action)
+            if action == "stop":
+                self.assertEqual(self.store.read_bytes(), original)
+            else:
+                self.assertEqual(self.backup.read_bytes(), original)
+                self.assertNotIn("installed", json.loads(self.store.read_bytes())["data"]["1000"])
+
+        self.assertEqual(self.guided("REPAIR", cli), 0)
+        self.assertEqual(calls, ["stop", "start"])
+
+    def test_alarmdotcom_preset_selects_the_published_repositories(self):
+        old, new = self.document["data"]["1000"], self.document["data"]["2000"]
+        old["full_name"] = "pyalarmdotcom/alarmdotcom"
+        new["full_name"] = "ibasebcast/ha-alarmdotcom"
+        old["domain"] = new["domain"] = "alarmdotcom"
+        self.manifest.write_text('{"domain":"alarmdotcom"}', encoding="utf-8")
+        self.manifest.parent.rename(self.manifest.parent.with_name("alarmdotcom"))
+        self.write_store()
+        calls = []
+
+        def cli(command, *, check):
+            calls.append(command[-1])
+
+        self.assertEqual(self.guided("REPAIR", cli, "--alarmdotcom"), 0)
+        self.assertEqual(calls, ["stop", "start"])
+        self.assertNotIn("installed", json.loads(self.store.read_bytes())["data"]["1000"])
+
+    def test_guided_revalidates_storage_after_stop_and_starts_core_on_failure(self):
+        self.write_store()
+        calls = []
+
+        def cli(command, *, check):
+            action = command[-1]
+            calls.append(action)
+            if action == "stop":
+                self.document["data"]["2000"]["installed"] = True
+                self.write_store()
+
+        self.assertEqual(self.guided("REPAIR", cli), 1)
+        self.assertEqual(calls, ["stop", "start"])
+        self.assertEqual(json.loads(self.store.read_bytes()), self.document)
         self.assertFalse(self.backup.exists())

@@ -6,7 +6,9 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import stat
+import subprocess
 import sys
 from tempfile import NamedTemporaryFile
 
@@ -14,6 +16,7 @@ STORE_KEY = "marketplace.repositories"
 INSTALL_FIELDS = ("installed", "installed_commit", "version_installed")
 REPOSITORY_NAME = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 INTEGRATION_DOMAIN = re.compile(r"[a-z0-9_]+")
+ALARM_DOT_COM_REPOS = ("pyalarmdotcom/alarmdotcom", "ibasebcast/ha-alarmdotcom")
 
 
 def unique_keys(pairs):
@@ -126,15 +129,59 @@ def save_repair(path, original, updated):
             temp_path.unlink(missing_ok=True)
 
 
+def read_repair(path, args):
+    """Read current Marketplace storage and validate the proposed repair."""
+    if not path.is_file() or path.is_symlink():
+        raise ValueError(f"Could not find a regular Marketplace storage file at {path}.")
+    original = path.read_bytes()
+    return original, prepare_repair(original, args.config, args.old_repo, args.new_repo)
+
+
+def guided_repair(path, args, plan):
+    """Use the Supervisor CLI to apply a confirmed repair while Core is stopped."""
+    print("Home Assistant will go offline briefly.")
+    answer = input("After creating a full backup, type REPAIR to continue: ")
+    if answer.strip() != "REPAIR":
+        print("Cancelled. No files were changed.")
+        return 0
+
+    try:
+        subprocess.run(["ha", "core", "stop"], check=True)
+        # Core can flush Marketplace storage during shutdown. Read it again
+        # and check that the same repair is still appropriate before writing.
+        original, current = read_repair(path, args)
+        if (current[0], current[2]) != (plan[0], plan[2]) or current[1] is None:
+            raise ValueError("The proposed change no longer matches the preview. Run the tool again.")
+        backup = save_repair(path, original, current[1])
+        print(f"Repair applied. Original Marketplace metadata saved to {backup}", flush=True)
+    finally:
+        try:
+            subprocess.run(["ha", "core", "start"], check=True)
+        except (OSError, subprocess.CalledProcessError):
+            print("Automatic start failed. Run 'ha core start' to bring Home Assistant back online.",
+                  file=sys.stderr)
+            raise
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", required=True, type=Path, help="Home Assistant configuration directory")
-    parser.add_argument("--from", dest="old_repo", required=True, help="Blocking GitHub repository (owner/name)")
-    parser.add_argument("--to", dest="new_repo", required=True, help="Replacement GitHub repository (owner/name)")
+    parser.add_argument("--config", default=Path("/config"), type=Path, help="Home Assistant configuration directory (default: /config)")
+    parser.add_argument("--from", dest="old_repo", help="Blocking GitHub repository (owner/name)")
+    parser.add_argument("--to", dest="new_repo", help="Replacement GitHub repository (owner/name)")
+    parser.add_argument("--guided", action="store_true", help="Preview and apply with a prompt on Home Assistant OS")
+    parser.add_argument("--alarmdotcom", action="store_true", help="Start the guided Alarm.com migration on Home Assistant OS")
     parser.add_argument("--apply", action="store_true", help="Write the repair after reviewing the preview")
     parser.add_argument("--core-stopped", action="store_true", help="Confirm Home Assistant Core is stopped")
     args = parser.parse_args(argv)
-    if not all(REPOSITORY_NAME.fullmatch(name) for name in (args.old_repo, args.new_repo)):
+    if args.alarmdotcom:
+        if args.old_repo is not None or args.new_repo is not None:
+            parser.error("--alarmdotcom supplies both repository names")
+        args.old_repo, args.new_repo = ALARM_DOT_COM_REPOS
+        args.guided = True
+    if args.guided and (args.apply or args.core_stopped):
+        parser.error("Guided mode handles confirmation and Core shutdown")
+    if not all(name and REPOSITORY_NAME.fullmatch(name) for name in (args.old_repo, args.new_repo)):
         parser.error("--from and --to require GitHub repositories in owner/name form")
     if args.old_repo.casefold() == args.new_repo.casefold():
         parser.error("--from and --to must name different repositories")
@@ -143,10 +190,8 @@ def main(argv=None):
 
     path = args.config / ".storage" / STORE_KEY
     try:
-        if not path.is_file() or path.is_symlink():
-            raise ValueError(f"Could not find a regular Marketplace storage file at {path}.")
-        original = path.read_bytes()
-        domain, updated, installed = prepare_repair(original, args.config, args.old_repo, args.new_repo)
+        original, plan = read_repair(path, args)
+        domain, updated, installed = plan
         action = "Update" if installed else "Install"
         if updated is None:
             print(f"{args.old_repo} does not claim {domain}. No change needed.")
@@ -156,15 +201,26 @@ def main(argv=None):
         print(f"Integration: {domain}")
         print(f"Clear the installed status for {args.old_repo}.")
         print(f"Then {action.lower()} {args.new_repo} in Marketplace.")
+        if args.guided:
+            if not sys.stdin.isatty():
+                raise ValueError("Run guided mode from an interactive SSH terminal.")
+            if shutil.which("ha") is None:
+                raise ValueError("Guided mode requires the Home Assistant Supervisor CLI (ha).")
+            if path.with_name(path.name + ".before-repository-repair").exists():
+                raise ValueError("A prior rollback copy exists. Archive it before running another repair.")
+            return guided_repair(path, args, plan)
         if not args.apply:
             print("Preview only. No files were changed.")
             return 0
         backup = save_repair(path, original, updated)
         print(f"Repair applied. Original Marketplace metadata saved to {backup}")
         print(f"Start Core, then {action.lower()} {args.new_repo} in Marketplace.")
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"Repair stopped: {error}", file=sys.stderr)
         return 1
+    except (KeyboardInterrupt, EOFError):
+        print("Repair interrupted.", file=sys.stderr)
+        return 130
     return 0
 
 

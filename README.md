@@ -14,7 +14,36 @@ The tool clears the old repository's installed status and version information in
 
 This is a prototype tested against synthetic Marketplace data. Verify it on a spare instance or a copy of your configuration before using it on a live installation.
 
-## Clear the ownership conflict
+## Guided repair on Home Assistant OS
+
+1. Create a full Home Assistant backup. In **Settings → Marketplace**, add the
+   replacement repository with **Add from link** if it's missing, then open its
+   details so Marketplace has a record for it. For Alarm.com, add
+   `ibasebcast/ha-alarmdotcom`. Cancel **Delete and uninstall** if offered.
+2. Connect from your computer with an SSH client to a terminal app that stays
+   available while Home Assistant Core stops. Check `python3 --version`.
+   If Python is missing from the official **Terminal & SSH** app, add
+   `python3` to the app's `apks` list and restart the app.
+3. For Alarm.com, paste this in the SSH session:
+
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/ibasebcast/marketplace-repository-repair/main/repair.py -o /tmp/marketplace-repair.py &&
+     python3 /tmp/marketplace-repair.py --alarmdotcom
+   ```
+
+   Review the plan. Type **REPAIR** to apply it. The tool stops Core, saves the
+   original Marketplace metadata, clears the conflict, and starts Core again.
+   Press Enter to cancel.
+4. Once Home Assistant is back, open the replacement in Marketplace and use
+   **Install** or **Update**, as shown in the preview. Restart if prompted.
+
+For another integration, use
+`python3 /tmp/marketplace-repair.py --guided --from old-owner/old-repo --to new-owner/new-repo`.
+Use the repository named in the error for `--from` and the one you want to
+install or update for `--to`. Add `--config` if your configuration directory
+is somewhere other than `/config`.
+
+## Manual repair on Container or from a host shell
 
 1. Create a full Home Assistant backup.
 2. Preview the repair. Use the repository named in the ownership error for `--from` and the repository you want for `--to`. Change `/config` if your configuration is elsewhere.
