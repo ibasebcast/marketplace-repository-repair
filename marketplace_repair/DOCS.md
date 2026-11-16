@@ -16,4 +16,8 @@ Each repair saves a separate timestamped snapshot of Marketplace metadata in `.s
 
 If Core is still offline after several minutes, see the [app repository](https://github.com/ibasebcast/marketplace-repository-repair) for the manual recovery commands.
 
-This app is experimental and uses an internal Marketplace storage format. It checks the format before applying a repair.
+## Live validation
+
+Version **0.1.2** was verified on the maintainer’s live Home Assistant OS system. The maintainer switched from the maintained Alarm.com integration to the original and back again, and the existing integration entry loaded successfully.
+
+The app checks the Marketplace storage format before applying a repair.

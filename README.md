@@ -11,7 +11,9 @@ The tool clears the old repository's installed status and version information in
 - Marketplace on Home Assistant Core 2026.11, using repository storage format 1.1. The tool was developed against the 2026.11.1 source.
 - The original and replacement repositories must both be visible in Marketplace. Add or refresh the replacement first so Marketplace has recorded its integration domain.
 
-This is experimental. Automated tests use synthetic Marketplace data and simulated Core restarts. Try it on a spare instance before relying on it on a live installation.
+**Live validation.** Version **0.1.2** was verified on the maintainer’s live Home Assistant OS system. The maintainer switched from the maintained Alarm.com integration to the original and back again, and the existing integration entry loaded successfully.
+
+Automated tests also cover simulated Core restarts and repository switches. Make a full Home Assistant backup before applying a repair.
 
 ## Repair from the Home Assistant browser
 
